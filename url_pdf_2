@@ -1,0 +1,98 @@
+import os
+import xattr
+import tkinter as tk
+from tkinter import filedialog, messagebox
+from tkinter.ttk import Progressbar
+
+class PDFMetadataRemover:
+    def __init__(self):
+        self.root = tk.Tk()
+        self.root.title("PDF Metadata Remover")
+        self.root.geometry('400x280')
+
+        self.title_label = tk.Label(self.root, text="PDF Metadata Remover v2.0", fg='orange', font=("Helvetica", 16))
+        self.title_label.pack(pady=20)
+
+        self.file_or_folder = tk.BooleanVar()
+        self.file_or_folder.set(False)  # default is file selection
+
+        self.select_file_button = tk.Checkbutton(self.root, text="Select Folder", variable=self.file_or_folder,
+                                                onvalue=True, offvalue=False, command=self.change_select_mode, fg='white')
+        self.select_file_button.pack(pady=10)
+
+        self.select_button = tk.Button(self.root, text="Select File", command=self.select_file_or_folder)
+        self.select_button.pack(pady=10)
+
+        self.progress = Progressbar(self.root, orient="horizontal", length=300, mode="determinate")
+        self.progress.pack(pady=10)
+
+        self.success_label = tk.Label(self.root, text="Successfully Removed: 0", fg='green')
+        self.success_label.pack()
+
+        self.no_url_label = tk.Label(self.root, text="No URL Information Found: 0", fg='red')
+        self.no_url_label.pack()
+
+        self.quit_button = tk.Button(self.root, text="QUIT", fg="red", command=self.root.quit)
+        self.quit_button.pack(pady=10)
+
+        self.successful_removals = 0
+        self.no_url_info = 0
+
+    def change_select_mode(self):
+        if self.file_or_folder.get() == True:  # folder selection mode
+            self.select_button.config(text="Select Folder")
+        else:
+            self.select_button.config(text="Select File")
+
+    def select_file_or_folder(self):
+        if self.file_or_folder.get() == True:  # folder selection
+            path = filedialog.askdirectory()
+            self.remove_where_from_attribute(path)
+        else:  # file selection
+            path = filedialog.askopenfilename(filetypes=[('PDF Files', '*.pdf')])
+            self.remove_single_file_metadata(path)
+
+        messagebox.showinfo("Info", "Metadata removal completed!")
+
+    def remove_where_from_attribute(self, input_folder):
+        total_files = 0
+        completed_files = 0
+        no_url_info_files = 0
+
+        for root, dirs, files in os.walk(input_folder):
+            for file in files:
+                if file.endswith(".pdf"):
+                    total_files += 1
+
+        self.progress["maximum"] = total_files
+
+        for root, dirs, files in os.walk(input_folder):
+            for file in files:
+                if file.endswith(".pdf"):
+                    result = self.remove_single_file_metadata(os.path.join(root, file))
+                    completed_files += 1
+                    self.progress["value"] = completed_files
+                    self.root.update_idletasks()
+
+                    if result == "success":
+                        self.successful_removals += 1
+                        self.success_label.config(text=f"Successfully Removed: {self.successful_removals}")
+
+                    if result == "no_url_info":
+                        no_url_info_files += 1
+                        self.no_url_label.config(text=f"No URL Information Found: {no_url_info_files}")
+
+    def remove_single_file_metadata(self, input_path):
+        try:
+            attr = xattr.getxattr(input_path, 'com.apple.metadata:kMDItemWhereFroms')
+            xattr.removexattr(input_path, 'com.apple.metadata:kMDItemWhereFroms')
+            return "success"
+        except (KeyError, OSError, IOError):
+            return "no_url_info"
+
+    def run(self):
+        self.root.mainloop()
+
+if __name__ == "__main__":
+    app = PDFMetadataRemover()
+    app.run()
